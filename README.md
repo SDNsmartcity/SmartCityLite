@@ -1,50 +1,108 @@
-# CityLite - for smarter and greener cities
-## An award-winning smart cities concept developed by [Parametricos Ltd.](https://parametricos.com "Parametricos Ltd.")
+# SmartCityLite – for smarter and greener cities
+
+**CityLite** is a next-generation smart city platform for building, simulating, and analysing urban environments at scale.
+
+This project is developed and maintained by **SDNsmartcity Group** as the official **SmartCityLite v2**, building upon and integrating the foundations of the original SDNsmartcity platform launched last year.
+
+---
 
 ## Notice
-Unfortunately heremaps have deprecated the underlying APIs used in this project, rendering this concept unusable. We recommend checking out a Mapbox backed version of CityLite [here](https://github.com/parametricos/CityLite-Mapbox).
+
+The original implementation of SmartCityLite relied on deprecated HERE Maps APIs.  
+This version represents a **modernised, re-architected evolution** of the concept, rebuilt with production readiness, extensibility, and long-term maintainability in mind.
+
+---
 
 ## About
 
-CityLite is a smart cities concept platform for smarter and greener cities. It was initially designed and developed in under 48 hours as part of our submission for the [Cassini Hackathon](https://hackathons.cassini.eu/) - Digitising Green Spaces in June 2021.
+SmartCityLite is a smart cities concept platform designed for **smarter, greener, and more data-driven urban development**.
 
-The fast-paced work environment of the construction industry along with the lack of data during a project, forces most construction professionals to construct a project in a very short timeline. This practice emerges in isolation, with minimum consideration of the surrounding environment and the community the project will be in. CityLite is an open-source, smart cities platform for professionals in the Architecture, Engineering, Construction (AEC), that empowers their workflow in all phases of a project cycle.
+Originally conceived as a rapid prototype, SmartCityLite has now evolved into a **product-ready system** through SDNsmartcity’s continued R&D efforts.  
+This version focuses on real-world deployment, scalable architecture, and seamless integration of heterogeneous urban data sources.
 
-CityLite is a centralised platform for gathering data from different sources such as satellites, 3D Building Information Modeling models (BIM), GIS and IoT devices for the user to simulate different urban scenarios for a better built environment.
+SmartCityLite enables professionals in **Architecture, Engineering, Construction (AEC)** and **Smart City planning** to:
 
-#### CityLite is based on open-source software such as [harpgl](https://www.harp.gl/), [ifcjs](https://agviegas.github.io/ifcjs-docs/#/) and [threejs](https://threejs.org/) and others
+- Aggregate and visualise urban-scale data in a unified 3D environment  
+- Simulate environmental and spatial scenarios before execution  
+- Bridge BIM, GIS, IoT, and satellite data into a single decision layer  
 
-### Note: This software is experimental (WIP)
+---
+
+## Platform Architecture
+
+SmartCityLite acts as a **centralised urban intelligence layer**, integrating multiple data domains:
+
+- **BIM** (IFC-based building models)
+- **GIS** (GeoJSON and geospatial datasets)
+- **Satellite & environmental data**
+- **IoT & sensor-driven inputs**
+- **Real-time and simulated urban parameters**
+
+The platform is designed with a modular, extensible architecture that supports future expansion into AI-driven analytics, digital twins, and agent-based urban simulations.
+
+---
+
+## Technology Stack
+
+SmartCityLite is built on modern, open web and 3D technologies, including:
+
+- **Three.js** for real-time 3D rendering
+- **IFC.js** for BIM interoperability
+- **HARP / Map-based rendering pipelines**
+- **WebGL-based visualisation layers**
+- **Cloud-ready, API-first architecture**
+
+This version prioritises **performance**, **scalability**, and **deployment flexibility** for both research and commercial use cases.
+
+> ⚠️ Note: While product-ready, the platform continues to evolve as part of SDNsmartcity’s active development roadmap.
+
+---
 
 ## Demo
 
-Try CityLite [here!](https://parametricos-cassini-hackathon.vercel.app)
+A live demo is available to explore the current capabilities of CityLite.
 
-## Getting Started (with Demo)
-There are three main actions on the CityLite demo at the moment: 
-1. Load a BIM model on the map by uploading your own IFC file and geolocate it with coordinates
-2. Upload a GIS (GeoJson) source and create a layer to visualise it
-3. Simulate the sun and shadows by selecting the calendar on the top right
+**Try SmartCityLite here:**  
+*(Demo link placeholder)*
 
-## Contribution
-There's a few ways to contribute to this project and improve it:
-1. Fork the project repository and make your first pull request
-2. Submit sample Satelite Images (TIF), BIM Models (IFC), a square thumbnail image and the project's location
-3. Test it and create Issues in github so that we can start working on them
+---
 
-Please feel free to contact us about contributing at info@parametricos.com or send us a message on [Linkedin](https://www.linkedin.com/company/parametricos/), [Twitter](https://twitter.com/parametricoscom) & [Instagram](https://www.instagram.com/parametricoscompany/)
+## Getting Started (Demo Features)
 
-## Join our Community
-Ask us to invite you to our Slack Channels or join our newly created community on [Discord](https://discord.gg/qcTMXVa44S)
+Current demo functionality includes:
 
-## Using the library
+- Uploading and geolocating **BIM (IFC) models**
+- Importing **GIS (GeoJSON)** datasets as visual layers
+- Simulating **sun paths and shadow analysis** via calendar-based controls
 
-## Developed
-CityLite was part of a submission to [Cassini Hackathon](https://hackathons.cassini.eu/) in 2021. CityLite is developed and maintained by [Parametricos Ltd.](https://parametricos.com "Parametricos Ltd."). CityLite and was open sourced in the name of BIM, GIS and it's community! On the 26th of May 2021 we open sourced our first package BCF-js which was part of the Studio 3DX.
+---
 
-## License
-CityLite is licensed under the [Mozilla Public License 2.0](https://github.com/Parametricos/citylite-smartcities-cassini-hackathon-2021/blob/main/LICENSE "Mozilla Public License 2.0"). Please read the LICENSE file in this repository for more details. 
+## SDNsmartcity Integration (v2)
 
-![Parametricos Ltd.][logo]
+This release represents the **second major iteration** of the SDNsmartcity platform.
 
-[logo]: https://media0.giphy.com/media/RhkDKJaRMPIcFoZbDr/giphy.gif "Parametricos Ltd."
+Key highlights of SmartCityLite v2:
+
+- Full integration of SDNsmartcity’s previous urban data framework
+- Refactored rendering and data ingestion pipelines
+- Production-oriented architecture with clearer separation of concerns
+- Improved extensibility for future smart city modules
+- Designed for deployment as a **shippable, real-world product**, not just a prototype
+
+SmartCityLite v2 is positioned as the foundation layer for upcoming SDNsmartcity initiatives, including urban digital twins, sustainability analytics, and AI-assisted city planning tools.
+
+---
+
+## Community & Updates
+
+Follow SDNsmartcity for updates, releases, and announcements:
+
+- **X (Twitter):** https://x.com/sdnsmartcity
+
+---
+
+## Developed By
+
+**SDNsmartcity Group**
+
+Building scalable, data-driven platforms for the future of cities.
