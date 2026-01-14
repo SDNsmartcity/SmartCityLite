@@ -1,0 +1,7 @@
+{
+  "name": "SmartCityLite v2 - Urban Digital Twin",
+  "description": "An interactive 3D smart city visualization integrating Mapbox GL JS and Three.js for BIM/GIS data fusion, environmental simulation, and urban massing.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
