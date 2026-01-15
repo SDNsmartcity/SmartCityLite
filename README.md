@@ -98,7 +98,7 @@ SmartCityLite v2 is positioned as the foundation layer for upcoming SDNsmartcity
 Follow SDNsmartcity for updates, releases, and announcements:
 
 - **X (Twitter):** https://x.com/sdnsmartcity
-
+- **Website** Coming soon
 ---
 
 ## Developed By
