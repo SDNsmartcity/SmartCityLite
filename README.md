@@ -1,3 +1,6 @@
+test
+
+![banner](https://github.com/SDNsmartcity/SmartCityLite/blob/main/assets/banner.png)
 
 
 # SmartCityLite – for smarter and greener cities
