@@ -42,6 +42,7 @@ const ModelsDialog : FunctionComponent<ModelsDialogProps & DialogProps> = observ
         await model.loadData(url, type);
         modelManager.addModel(model)
         setLoading(false);
+        0,
         onModelCreated()
     }, [modelManager, onModelCreated])
     
