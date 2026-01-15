@@ -1,8 +1,3 @@
-test
-
-![banner](https://github.com/SDNsmartcity/SmartCityLite/blob/main/assets/banner.png)
-
-
 # SmartCityLite – for smarter and greener cities
 
 **CityLite** is a next-generation smart city platform for building, simulating, and analysing urban environments at scale.
@@ -107,6 +102,9 @@ Follow SDNsmartcity for updates, releases, and announcements:
 ---
 
 ## Developed By
+
+![banner](https://github.com/SDNsmartcity/SmartCityLite/blob/main/assets/banner.png)
+
 
 **SDNsmartcity Group**
 
