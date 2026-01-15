@@ -1,153 +1,176 @@
 import GeoJsonLayer from "./GeoJsonLayer";
-import {Theme} from "@here/harp-datasource-protocol";
-import {MapView} from "@here/harp-mapview";
-import {makeAutoObservable, reaction, toJS} from "mobx";
+import { Theme } from "@here/harp-datasource-protocol";
+import { MapView } from "@here/harp-mapview";
+import { makeAutoObservable } from "mobx";
 import DataSource from "./DataSource";
 import Viewer from "../viewer";
 import localforage from "localforage";
-import {DataSourceTypes} from "./DataSourceTypes";
+import { DataSourceTypes } from "./DataSourceTypes";
 
-const resource_url = "https://cassini-hackathon-resources.s3.eu-central-1.amazonaws.com"
-const resource_github_url = "https://raw.githubusercontent.com/Parametricos/citylite-smartcities-cassini-hackathon-2021/main/assets/layers"
+const S3_BASE =
+    "https://cassini-hackathon-resources.s3.eu-central-1.amazonaws.com";
+const GITHUB_BASE =
+    "https://raw.githubusercontent.com/Parametricos/citylite-smartcities-cassini-hackathon-2021/main/assets/layers";
 
-const DemoData = [
+const DEMO_SOURCES = [
     {
-        name: "USA - San Francisco - Neighborhood Boundaries",
         id: "san_francisco_neighborhoods",
+        title: "USA - San Francisco - Neighborhood Boundaries",
         type: "geojson",
-        country: "USA",
-        updated: "18 June 2021",
-        url: `${resource_url}/layers/san_francisco_neighborhoods.json`
+        region: "USA",
+        updatedAt: "18 June 2021",
+        endpoint: `${S3_BASE}/layers/san_francisco_neighborhoods.json`
     },
     {
-        name: "Cyprus - Limassol - Normalized Difference Vegetation Index (NDVI)",
         id: "limassol_ndvi",
+        title:
+            "Cyprus - Limassol - Normalized Difference Vegetation Index (NDVI)",
         type: "geojson",
-        country: "Cyprus",
-        updated: "18 June 2021",
-        url: `${resource_url}/layers/limassol_ndvi.geojson`
+        region: "Cyprus",
+        updatedAt: "18 June 2021",
+        endpoint: `${S3_BASE}/layers/limassol_ndvi.geojson`
     },
     {
-        name: "Cyprus - Fire - Emergency 2021.07.02",
         id: "cyprusfire_20210703",
+        title: "Cyprus - Fire - Emergency 2021.07.02",
         type: "geojson",
-        country: "Cyprus",
-        updated: "03 July 2021",
-        url: `${resource_github_url}/20210703_CyprusFire-EPSG.geojson`
+        region: "Cyprus",
+        updatedAt: "03 July 2021",
+        endpoint: `${GITHUB_BASE}/20210703_CyprusFire-EPSG.geojson`
     },
     {
-        name: "Cyprus - Fire - Housing 2021.07.02",
         id: "cyprusfirehousing_20210703",
+        title: "Cyprus - Fire - Housing 2021.07.02",
         type: "geojson",
-        country: "Cyprus",
-        updated: "03 July 2021",
-        url: `${resource_github_url}/20210703_Cadastral-Buildings-CyprusFire-EPSG.geojson`
-    },
-    /*{
-        id: "limassol_boundary_buildings",
-        name: "Limassol Boundary Buildings",
-        type: "geojson",
-        url: `${resource_url}/layers/limassol_boundary_buildings.geojson`
-    }*/
-]
+        region: "Cyprus",
+        updatedAt: "03 July 2021",
+        endpoint: `${GITHUB_BASE}/20210703_Cadastral-Buildings-CyprusFire-EPSG.geojson`
+    }
+];
 
-export default class LayerManager {
+export default class MapLayerRegistry {
+    readonly viewer: Viewer;
+    readonly mapView: MapView;
+    readonly theme: Theme;
 
-    viewer: Viewer;
-    map: MapView
-    theme: Theme;
-
-    dataSources: DataSource[] = []
-    layers: GeoJsonLayer[] = []
+    sources: DataSource[] = [];
+    activeLayers: GeoJsonLayer[] = [];
 
     constructor(viewer: Viewer, theme: Theme) {
         this.viewer = viewer;
-        this.map = viewer.map;
+        this.mapView = viewer.map;
         this.theme = theme;
-        makeAutoObservable(this)
-        this.loadCachedDataSources()
-        this.loadDemoDataSources()
+
+        makeAutoObservable(this);
+
+        this.restoreCachedSources();
+        this.bootstrapDemoSources();
     }
 
-    async addLayer(layer: GeoJsonLayer){
+    // =====================
+    // Layer handling
+    // =====================
 
-        this.layers.push(layer);
+    async registerLayer(layer: GeoJsonLayer) {
+        this.activeLayers.push(layer);
 
-        const styles : any = {};
-        this.layers.forEach((layer) => {
-            styles[layer.id] = layer.styleSet;
-        })
+        const styleMap: Record<string, any> = {};
+        for (const l of this.activeLayers) {
+            styleMap[l.id] = l.styleSet;
+        }
 
-        await this.viewer.setThemeStyles(styles)
+        await this.viewer.setThemeStyles(styleMap);
 
-        const datasource = layer.harpFeaturesDataSource;
-        if(!datasource) return console.log('datasource is not loaded properly.');
+        const harpSource = layer.harpFeaturesDataSource;
+        if (!harpSource) {
+            console.warn("Layer datasource not initialized");
+            return;
+        }
 
-        await this.map.addDataSource(datasource);
+        await this.mapView.addDataSource(harpSource);
         return layer;
     }
 
-    removeLayer(layer: GeoJsonLayer) : void {
+    unregisterLayer(layer: GeoJsonLayer) {
+        const harpSource = layer.harpFeaturesDataSource;
+        if (!harpSource) {
+            console.warn("Layer datasource not initialized");
+            return;
+        }
 
-        const datasource = layer.harpFeaturesDataSource;
-        if(!datasource) return console.log('datasource is not loaded properly.');
+        this.mapView.removeDataSource(harpSource);
 
-        this.map.removeDataSource(datasource);
-
-        const index = this.layers.indexOf(layer, 0);
-        if (index > -1) {
-            this.layers.splice(index, 1);
+        const idx = this.activeLayers.indexOf(layer);
+        if (idx >= 0) {
+            this.activeLayers.splice(idx, 1);
         }
     }
 
-    getDatasource (id: string) {
-        return this.dataSources.find((x) => x.id === id);
+    // =====================
+    // Data sources
+    // =====================
+
+    findSource(id: string) {
+        return this.sources.find(src => src.id === id);
     }
 
-    async loadDemoDataSources(){
-        for(let i = 0; i < DemoData.length; i++){
+    async bootstrapDemoSources() {
+        for (const demo of DEMO_SOURCES) {
             try {
-                const demo = DemoData[i];
-                const response = await fetch(demo.url);
+                const response = await fetch(demo.endpoint);
+                const payload = await response.json();
 
-                const datasource = new DataSource(demo.id, demo.name, demo.type as DataSourceTypes);
-                datasource.cachable = false;
-                datasource.demo = true;
+                const source = new DataSource(
+                    demo.id,
+                    demo.title,
+                    demo.type as DataSourceTypes
+                );
 
-                await datasource.setData(await response.json())
-                this.dataSources.push(datasource)
-            }catch (e) {
-                console.log("Error loading demo data")
-                console.error(e);
+                source.cachable = false;
+                source.demo = true;
+
+                await source.setData(payload);
+                this.sources.push(source);
+            } catch (err) {
+                console.error("Failed to load demo datasource", err);
             }
         }
     }
 
+    restoreCachedSources() {
+        localforage
+            .iterate((stored: any, key: string) => {
+                if (!key.startsWith("datasource-")) return;
 
-    async loadCachedDataSources(){
-        localforage.iterate((value: any, key, iterationNumber) => {
-            if(key.startsWith("datasource")){
-                const datasource = new DataSource(value.id, value.name, value.type);
-                datasource.features = value.features;
-                datasource.properties = value.properties;
-                datasource.data = {
+                const source = new DataSource(
+                    stored.id,
+                    stored.name,
+                    stored.type
+                );
+
+                source.features = stored.features;
+                source.properties = stored.properties;
+                source.data = {
                     type: "FeatureCollection",
-                    features: value.features
-                }
-                datasource.loaded = true;
-                this.dataSources.push(datasource)
-            }
-        }).then(function() {
-            console.log('Loading cached data sources has completed');
-        }).catch(function(err) {
-            console.log("An error occurred loading a cached data source.")
-            console.error(err);
-        });
+                    features: stored.features
+                };
+
+                source.loaded = true;
+                this.sources.push(source);
+            })
+            .then(() => {
+                console.info("Cached data sources restored");
+            })
+            .catch(err => {
+                console.error("Failed restoring cached data sources", err);
+            });
     }
 
-    async deleteDataSource(id: string){
-        const match = this.dataSources.findIndex((x) => x.id === id);
+    async removeSource(id: string) {
+        const index = this.sources.findIndex(src => src.id === id);
+        if (index === -1) return;
+
         await localforage.removeItem(`datasource-${id}`);
-        this.dataSources.splice(match, 1);
+        this.sources.splice(index, 1);
     }
 }

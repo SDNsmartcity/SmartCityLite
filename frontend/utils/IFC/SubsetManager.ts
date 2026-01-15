@@ -1,4 +1,10 @@
-import { BufferGeometry, Material, Mesh, MeshLambertMaterial, Scene } from 'three';
+import {
+    BufferGeometry,
+    Material,
+    Mesh,
+    Scene
+} from 'three';
+
 import {
     IfcState,
     HighlightConfig,
@@ -9,155 +15,202 @@ import {
     DEFAULT
 } from './BaseDefinitions';
 
-export class SubsetManager {
-    private state: IfcState;
-    private selected: SelectedItems;
+export class IfcSubsetController {
+    private ifcState: IfcState;
+    private activeSelections: SelectedItems = {};
 
     constructor(state: IfcState) {
-        this.state = state;
-        this.selected = {};
+        this.ifcState = state;
     }
 
-    getSubset(modelID: number, material?: Material) {
-        const currentMat = this.matIDNoConfig(modelID, material);
-        if (!this.selected[currentMat]) return null;
-        return this.selected[currentMat].mesh;
+    /** Return existing subset mesh */
+    getSubset(modelID: number, material?: Material): Mesh | null {
+        const key = this.buildKey(modelID, material);
+        return this.activeSelections[key]?.mesh ?? null;
     }
 
-    removeSubset(modelID: number, scene?: Scene, material?: Material) {
-        const currentMat = this.matIDNoConfig(modelID, material);
-        if (!this.selected[currentMat]) return;
-        if(scene) scene.remove(this.selected[currentMat].mesh);
-        delete this.selected[currentMat];
+    /** Remove subset from memory and optionally from scene */
+    clearSubset(
+        modelID: number,
+        scene?: Scene,
+        material?: Material
+    ) {
+        const key = this.buildKey(modelID, material);
+        const entry = this.activeSelections[key];
+        if (!entry) return;
+
+        if (scene) scene.remove(entry.mesh);
+        delete this.activeSelections[key];
     }
 
+    /** Main subset creation entry */
     createSubset(config: HighlightConfig) {
-        if (!this.isConfigValid(config)) return;
-        if (this.isPreviousSelection(config)) return;
-        if (this.isEasySelection(config)) return this.addToPreviousSelection(config);
-        this.updatePreviousSelection(config.scene, config);
-        return this.createSelectionInScene(config);
+        if (!this.isConfigUsable(config)) return;
+        if (this.isDuplicateSelection(config)) return;
+        if (this.shouldAppend(config)) {
+            return this.appendSelection(config);
+        }
+
+        this.prepareSelectionGroup(config.scene, config);
+        return this.spawnSubset(config);
     }
 
-    private createSelectionInScene(config: HighlightConfig) {
-        const filtered = this.filter(config);
-        const { geomsByMaterial, materials } = this.getGeomAndMat(filtered);
-        const hasDefaultMaterial = this.matID(config) == DEFAULT;
-        const geometry = merge(geomsByMaterial, hasDefaultMaterial);
-        const mats = hasDefaultMaterial ? materials : config.material;
-        //@ts-ignore
-        const mesh = new Mesh(geometry, mats);
-        this.selected[this.matID(config)].mesh = mesh;
-        //@ts-ignore
-        mesh.modelID = config.modelID;
+    // =====================
+    // Internal logic
+    // =====================
+
+    private spawnSubset(config: HighlightConfig): Mesh {
+        const filtered = this.collectFilteredGeometries(config);
+        const { geometries, materials } = this.extractGeometries(filtered);
+
+        const usesDefault = this.resolveMatKey(config) === DEFAULT;
+        const merged = merge(geometries, usesDefault);
+        const mat = usesDefault ? materials : config.material;
+
+        const mesh = new Mesh(merged, mat as any);
+        (mesh as any).modelID = config.modelID;
+
+        this.activeSelections[this.resolveMatKey(config)].mesh = mesh;
         config.scene.add(mesh);
+
         return mesh;
     }
 
-    private isConfigValid(config: HighlightConfig) {
+    private isConfigUsable(config: HighlightConfig): boolean {
         return (
-            this.isValid(config.scene) &&
-            this.isValid(config.modelID) &&
-            this.isValid(config.ids) &&
-            this.isValid(config.removePrevious)
+            config.scene != null &&
+            config.modelID != null &&
+            config.ids != null &&
+            config.removePrevious != null
         );
     }
 
-    private isValid(item: any) {
-        return item != undefined && item != null;
-    }
-
-    private getGeomAndMat(filtered: GeometriesByMaterials) {
-        const geomsByMaterial: BufferGeometry[] = [];
+    private extractGeometries(filtered: GeometriesByMaterials) {
+        const geometries: BufferGeometry[] = [];
         const materials: Material[] = [];
-        for (let matID in filtered) {
-            const geoms = Object.values(filtered[matID].geometries);
-            if (!geoms.length) continue;
-            materials.push(filtered[matID].material);
-            if (geoms.length > 1) geomsByMaterial.push(merge(geoms));
-            else geomsByMaterial.push(...geoms);
+
+        for (const key of Object.keys(filtered)) {
+            const entry = filtered[key];
+            const geoList = Object.values(entry.geometries);
+
+            if (!geoList.length) continue;
+
+            materials.push(entry.material);
+            geometries.push(
+                geoList.length > 1 ? merge(geoList) : geoList[0]
+            );
         }
-        return { geomsByMaterial, materials };
+
+        return { geometries, materials };
     }
 
-    private updatePreviousSelection(scene: Scene, config: HighlightConfig) {
-        const previous = this.selected[this.matID(config)];
-        if (!previous) return this.newSelectionGroup(config);
-        scene.remove(previous.mesh);
-        config.removePrevious
-            ? (previous.ids = new Set(config.ids))
-            : config.ids.forEach((id) => previous.ids.add(id));
+    private prepareSelectionGroup(scene: Scene, config: HighlightConfig) {
+        const key = this.resolveMatKey(config);
+        const existing = this.activeSelections[key];
+
+        if (!existing) {
+            this.activeSelections[key] = {
+                ids: new Set(config.ids),
+                mesh: {} as Mesh
+            };
+            return;
+        }
+
+        scene.remove(existing.mesh);
+
+        if (config.removePrevious) {
+            existing.ids = new Set(config.ids);
+        } else {
+            config.ids.forEach(id => existing.ids.add(id));
+        }
     }
 
-    private newSelectionGroup(config: HighlightConfig) {
-        this.selected[this.matID(config)] = {
-            ids: new Set(config.ids),
-            mesh: {} as Mesh
-        };
-    }
+    private isDuplicateSelection(config: HighlightConfig): boolean {
+        const key = this.resolveMatKey(config);
+        const current = this.activeSelections[key];
+        if (!current) return false;
 
-    private isPreviousSelection(config: HighlightConfig) {
-        if (!this.selected[this.matID(config)]) return false;
-        if (this.containsIds(config)) return true;
-        const previousIds = this.selected[this.matID(config)].ids;
+        const previousIds = Array.from(current.ids);
+        if (this.isSubset(config.ids, previousIds)) return true;
+
         return JSON.stringify(config.ids) === JSON.stringify(previousIds);
     }
 
-    private containsIds(config: HighlightConfig) {
-        const newIds = config.ids;
-        const previous = Array.from(this.selected[this.matID(config)].ids);
-        // prettier-ignore
-        //@ts-ignore
-        return newIds.every((i => v => (i = previous.indexOf(v, i) + 1))(0));
+    private isSubset(newIds: number[], previous: number[]): boolean {
+        let index = 0;
+        return newIds.every(v => {
+            index = previous.indexOf(v, index);
+            return index++ !== -1;
+        });
     }
 
-    private addToPreviousSelection(config: HighlightConfig) {
-        const previous = this.selected[this.matID(config)];
-        const filtered = this.filter(config);
-        // prettier-ignore
-        const geometries = Object.values(filtered).map((i) => Object.values(i.geometries)).flat();
-        const previousGeom = previous.mesh.geometry;
-        previous.mesh.geometry = merge([previousGeom, ...geometries]);
-        config.ids.forEach((id) => previous.ids.add(id));
+    private appendSelection(config: HighlightConfig) {
+        const key = this.resolveMatKey(config);
+        const selection = this.activeSelections[key];
+
+        const filtered = this.collectFilteredGeometries(config);
+        const extraGeoms = Object.values(filtered)
+            .flatMap(v => Object.values(v.geometries));
+
+        selection.mesh.geometry = merge([
+            selection.mesh.geometry,
+            ...extraGeoms
+        ]);
+
+        config.ids.forEach(id => selection.ids.add(id));
     }
 
-    private filter(config: HighlightConfig) {
-        const items = this.state.models[config.modelID].items;
-        const filtered: GeometriesByMaterials = {};
-        for (let matID in items) {
-            filtered[matID] = {
-                material: items[matID].material,
-                geometries: this.filterGeometries(new Set(config.ids), items[matID].geometries)
+    private collectFilteredGeometries(
+        config: HighlightConfig
+    ): GeometriesByMaterials {
+        const model = this.ifcState.models[config.modelID];
+        const selected = new Set(config.ids);
+        const result: GeometriesByMaterials = {};
+
+        for (const matKey in model.items) {
+            const entry = model.items[matKey];
+            result[matKey] = {
+                material: entry.material,
+                geometries: this.pickGeometries(selected, entry.geometries)
             };
         }
-        return filtered;
+
+        return result;
     }
 
-    private filterGeometries(selectedIDs: Set<number>, geometries: IdGeometries) {
-        const ids = Array.from(selectedIDs);
-        return Object.keys(geometries)
-            .filter((key) => ids.includes(parseInt(key, 10)))
-            .reduce((obj, key) => {
-                //@ts-ignore
-                return { ...obj, [key]: geometries[key] };
-            }, {});
+    private pickGeometries(
+        selected: Set<number>,
+        geometries: IdGeometries
+    ): IdGeometries {
+        const out: IdGeometries = {};
+
+        for (const key of Object.keys(geometries)) {
+            const id = Number(key);
+            if (selected.has(id)) {
+                out[key] = geometries[key];
+            }
+        }
+
+        return out;
     }
 
-    private isEasySelection(config: HighlightConfig) {
-        const matID = this.matID(config);
-        const def = this.matIDNoConfig(config.modelID);
-        if (!config.removePrevious && matID != def && this.selected[matID]) return true;
+    private shouldAppend(config: HighlightConfig): boolean {
+        const key = this.resolveMatKey(config);
+        const defaultKey = this.buildKey(config.modelID);
+        return (
+            !config.removePrevious &&
+            key !== defaultKey &&
+            !!this.activeSelections[key]
+        );
     }
 
-    private matID(config: HighlightConfig) {
-        if (!config.material) return DEFAULT;
-        const name = config.material.uuid || DEFAULT;
-        return name.concat(" - ").concat(config.modelID.toString())
+    private resolveMatKey(config: HighlightConfig): string {
+        const base = config.material?.uuid ?? DEFAULT;
+        return `${base} - ${config.modelID}`;
     }
 
-    private matIDNoConfig(modelID: number, material?: Material) {
-        let name = DEFAULT;
-        if(material) name = material.uuid;
-        return name.concat(" - ").concat(modelID.toString())
+    private buildKey(modelID: number, material?: Material): string {
+        const base = material?.uuid ?? DEFAULT;
+        return `${base} - ${modelID}`;
     }
 }

@@ -2,67 +2,74 @@ import DataSourceProperty from "../DataSourceProperty";
 import StringDataSourceProperty from "../StringDataSourceProperty";
 import NumberDataSourceProperty from "../NumberDataSourceProperty";
 
-export default function Parse(geojson: any) : { properties: DataSourceProperty[], features: object[]} {
+type ParseResult = {
+    properties: DataSourceProperty[];
+    features: object[];
+};
 
-    if(typeof geojson === 'string') geojson = JSON.parse(geojson);
+export default function parseGeoJSON(input: any): ParseResult {
+    const geojson =
+        typeof input === "string" ? JSON.parse(input) : input;
 
-    if(geojson.type === 'FeatureCollection'){
-        return iterateCollection(geojson);
-    }else{
-        console.log('no feature collection')
+    if (geojson?.type !== "FeatureCollection") {
+        console.warn("Input is not a FeatureCollection");
+        return { properties: [], features: [] };
     }
 
-    return { properties: [], features: []}
+    return processFeatures(geojson.features);
 }
 
-function iterateCollection(geojson: any) {
+function processFeatures(featuresList: any[]): ParseResult {
+    const collectedProps: DataSourceProperty[] = [];
+    const collectedFeatures: object[] = [];
 
-    const properties: DataSourceProperty[] =  [];
+    for (const feature of featuresList) {
+        collectedFeatures.push(feature);
+        extractProperties(feature.properties, collectedProps);
+    }
 
-    const features: any[] = [];
+    return {
+        features: collectedFeatures,
+        properties: collectedProps
+    };
+}
 
-    geojson.features.forEach((feature: any) =>{
-        features.push(feature);
+function extractProperties(
+    props: Record<string, any>,
+    registry: DataSourceProperty[]
+) {
+    for (const [key, value] of Object.entries(props)) {
+        if (value === undefined) continue;
 
-        for(let key in feature.properties){
-            if(feature.properties.hasOwnProperty(key)){
-                const existingProperty = properties.find((property) => property.name === key);
-                const value  = feature.properties[key];
+        const existing = registry.find(p => p.name === key);
+        const valueType = typeof value;
 
-                switch (typeof value) {
-                    case "undefined":
-                        break;
-                    case "object":
-                        break;
-                    case "boolean":
-                        break;
-                    case "number":{
-                        if(!existingProperty){
-                            const property = new NumberDataSourceProperty(key);
-                            property.expandRange(feature.properties[key]);
-                            properties.push(property);
-
-                        }else{
-                            (existingProperty as NumberDataSourceProperty).expandRange(feature.properties[key])
-                        }
-                        break;
-                    }
-                    case "function":
-                        break;
-                    case "symbol":
-                        break;
-                    case "bigint":
-                        break;
-                    case "string": {
-                        if(!existingProperty) {
-                            const property = new StringDataSourceProperty(key);
-                            properties.push(property);
-                        }
-                        break;
-                    }
-                }
-            }
+        if (valueType === "number") {
+            handleNumber(key, value, existing, registry);
+            continue;
         }
-    });
-    return { features: features, properties: properties}
+
+        if (valueType === "string") {
+            if (!existing) {
+                registry.push(new StringDataSourceProperty(key));
+            }
+            continue;
+        }
+    }
+}
+
+function handleNumber(
+    key: string,
+    value: number,
+    existing: DataSourceProperty | undefined,
+    registry: DataSourceProperty[]
+) {
+    if (!existing) {
+        const prop = new NumberDataSourceProperty(key);
+        prop.expandRange(value);
+        registry.push(prop);
+        return;
+    }
+
+    (existing as NumberDataSourceProperty).expandRange(value);
 }

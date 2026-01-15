@@ -1,99 +1,124 @@
 import * as shapefile from "shapefile";
-import {DataSourceTypes} from "./DataSourceTypes";
+import { DataSourceTypes } from "./DataSourceTypes";
 import DataSourceProperty from "./DataSourceProperty";
-import {makeAutoObservable, toJS} from "mobx";
-import Parse from "./utils/parse-geojson";
+import { makeAutoObservable, toJS } from "mobx";
+import parseGeoJSON from "./utils/parse-geojson";
 import * as localforage from "localforage";
 
-export default class DataSource {
+export default class DataSourceModel {
+    public id = "";
+    public label: string;
+    public sourceType: DataSourceTypes;
 
-    public id : string = '';
-    public type : DataSourceTypes = "geojson"
-    public name: string;
-    public properties : DataSourceProperty[] = [];
-    public features : object[] = [];
-    public data: any;
+    public properties: DataSourceProperty[] = [];
+    public features: object[] = [];
+    public rawData: any;
 
-    public cachable: boolean = true;
-    public demo: boolean = false;
+    public allowCache = true;
+    public isDemo = false;
 
-    loaded: boolean = false;
-    isCached: boolean = false;
+    public isLoaded = false;
+    public cached = false;
 
-    constructor(id: string, name: string, type: DataSourceTypes){
+    constructor(id: string, name: string, type: DataSourceTypes) {
         this.id = id;
-        this.name = name;
-        this.type = type;
+        this.label = name;
+        this.sourceType = type;
         makeAutoObservable(this);
     }
 
-    getData(){
-        return toJS(this.data)
+    get snapshot() {
+        return toJS(this.rawData);
     }
 
-    setData = async (data: any) => {
-        if(!data) return;
+    async load(data: any) {
+        if (!data) return;
 
-        switch (this.type) {
-            case "shp": {
-                const source = await shapefile.read(data);
+        if (this.sourceType === "shp") {
+            await this.loadFromShapefile(data);
+            return;
+        }
 
-                const { properties, features} = Parse(source);
-                this.properties = properties;
-                this.features = features;
-                this.data =
-                    {
-                        type: "FeatureCollection",
-                        features: this.features
-                    };
-                await this.cache()
-
-                break;
-            }
-            case "geojson":{
-
-                if(data instanceof File){
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                        const data = reader.result;
-                        const { properties, features} = Parse(data);
-                        this.properties = properties;
-                        this.features = features;
-                        this.data =
-                            {
-                                type: "FeatureCollection",
-                                features: this.features
-                            };
-
-                        if(this.cachable)
-                            this.cache()
-
-                    };
-                    reader.readAsText(data);
-                }else{
-                    const { properties, features} = Parse(data);
-                    this.properties = properties;
-                    this.features = features;
-                    this.data =
-                        {
-                            type: "FeatureCollection",
-                            features: this.features
-                        };
-
-                    if(this.cachable)
-                        this.cache()
-                }
-            }
+        if (this.sourceType === "geojson") {
+            await this.loadFromGeoJSON(data);
         }
     }
 
-    cache = async () => {
+    // =====================
+    // Internal loaders
+    // =====================
+
+    private async loadFromShapefile(input: any) {
+        const source = await shapefile.read(input);
+        const { properties, features } = parseGeoJSON(source);
+
+        this.assignData(properties, features);
+        await this.persist();
+    }
+
+    private async loadFromGeoJSON(input: any) {
+        if (input instanceof File) {
+            await this.readFile(input);
+            return;
+        }
+
+        const { properties, features } = parseGeoJSON(input);
+        this.assignData(properties, features);
+
+        if (this.allowCache) {
+            await this.persist();
+        }
+    }
+
+    private readFile(file: File): Promise<void> {
+        return new Promise(resolve => {
+            const reader = new FileReader();
+
+            reader.onload = async () => {
+                const content = reader.result;
+                const { properties, features } = parseGeoJSON(content);
+
+                this.assignData(properties, features);
+
+                if (this.allowCache) {
+                    await this.persist();
+                }
+
+                resolve();
+            };
+
+            reader.readAsText(file);
+        });
+    }
+
+    private assignData(
+        properties: DataSourceProperty[],
+        features: object[]
+    ) {
+        this.properties = properties;
+        this.features = features;
+
+        this.rawData = {
+            type: "FeatureCollection",
+            features: this.features
+        };
+
+        this.isLoaded = true;
+    }
+
+    // =====================
+    // Caching
+    // =====================
+
+    private async persist() {
         await localforage.setItem(`datasource-${this.id}`, {
             id: this.id,
-            name: this.name,
-            type: this.type,
+            name: this.label,
+            type: this.sourceType,
             features: toJS(this.features),
             properties: toJS(this.properties)
-        })
+        });
+
+        this.cached = true;
     }
 }

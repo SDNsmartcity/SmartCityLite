@@ -1,25 +1,27 @@
 import Viewer from "../viewer";
 import Model from "./Model";
-import {makeAutoObservable} from "mobx";
+import { makeAutoObservable } from "mobx";
 
-export default class ModelManager {
-
-    viewer: Viewer;
-    models: Model[] = []
+export default class SceneModelRegistry {
+    private viewerRef: Viewer;
+    registeredModels: Model[] = [];
 
     constructor(viewer: Viewer) {
-        this.viewer = viewer;
-        makeAutoObservable(this)
-
+        this.viewerRef = viewer;
+        makeAutoObservable(this);
     }
 
-    addModel(model: Model){
-        this.viewer.map.mapAnchors.add(model.mapAnchor);
-        this.viewer.map.lookAt({
+    register(model: Model) {
+        const map = this.viewerRef.map;
+
+        map.mapAnchors.add(model.mapAnchor);
+
+        map.lookAt({
             target: model.geoPosition,
             tilt: 60,
             zoomLevel: 19
-        })
-        this.models.push(model)
+        });
+
+        this.registeredModels.push(model);
     }
 }
